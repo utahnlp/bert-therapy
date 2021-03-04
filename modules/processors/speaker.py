@@ -46,12 +46,12 @@ def main(tokenizer_name, files):
             break
           current_context.insert(0, context_utterance)
         if len(current_context) > 0:
-          dataset['context'].append(f"{tokenizer.sep_token}".join(current_context))
+          dataset['context'].append(f"".join(current_context))
         else:
           continue
         dataset['utterance'].append(utterance)
         dataset['label'].append(label)
-    pd.DataFrame(dataset).to_csv(f"generated_data/{tokenizer_name}/speaker_{file.split('/')[-1].split('.')[0]}.csv", index=False, sep='ך')
+    pd.DataFrame(dataset).to_csv(f"generated_data/{tokenizer_name}/speaker/{file.split('/')[-1].split('.')[0]}.csv", index=False, sep='ך')
 
 if __name__ == '__main__':
     main(sys.argv[1], sys.argv[2:])

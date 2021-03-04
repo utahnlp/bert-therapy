@@ -22,7 +22,7 @@ import random
 import sys
 from dataclasses import dataclass, field
 from typing import Optional, List
-from sklearn.metrics import precision_recall_fscore_support
+from sklearn.metrics import precision_recall_fscore_support, f1_score
 
 import numpy as np
 import pandas as pd
@@ -37,13 +37,12 @@ from transformers import (
     EvalPrediction,
     HfArgumentParser,
     PretrainedConfig,
-    Trainer,
     TrainingArguments,
     default_data_collator,
     set_seed,
 )
 from transformers.trainer_utils import get_last_checkpoint, is_main_process
-
+from my_trainer import MyTrainer
 
 task_to_keys = {
     "utter": ("utterance", None),
@@ -93,7 +92,10 @@ class DataTrainingArguments:
         default=None, metadata={"help": "A csv or a json file containing the validation data."}
     )
     test_file: Optional[str] = field(default=None, metadata={"help": "A csv or a json file containing the test data."})
-    
+    context_first: bool = field(
+        default=False,
+        metadata={"help": "use context first in sentence pair tasks"},
+    )
     ## custom
     tokenizer_additional_tokens: Optional[List[str]] = field(
         default_factory= lambda: ['<P>', '</P>', '<T>', '</T>', '<U>', '</U>'],
@@ -237,7 +239,7 @@ def main():
     for key in data_files.keys():
         logger.info(f"load a local file for {key}: {data_files[key]}")
     # Loading a dataset from local csv files
-    datasets = {k: pd.read_csv(v, delimiter='ך') for k, v in data_files.items()}
+    datasets = {k: pd.read_csv(v, delimiter='ך', engine='python') for k, v in data_files.items()}
     # See more about loading any type of standard or custom dataset at
     # https://huggingface.co/docs/datasets/loading_datasets.html.
     # Trying to have good defaults here, don't hesitate to tweak to your needs.
@@ -278,17 +280,19 @@ def main():
     # Custom tokens
     num_added_tokens = tokenizer.add_special_tokens({'additional_special_tokens': data_args.tokenizer_additional_tokens })
     embeddings = model.resize_token_embeddings(len(tokenizer)) # doesn't mess with existing tokens
-    
+
     if model_args.copy_sep:
-      for i in range(1, num_added_tokens+1):
-        embeddings.weight.data[-i, :] = embeddings.weight.data[tokenizer.cls_token_id, :]
+        embeddings.weight.data[tokenizer.additional_special_tokens_ids, :] = embeddings.weight.data[tokenizer.cls_token_id, :].repeat(num_added_tokens, 1)
     ###################
 
     # Preprocessing the datasets
     # Again, we try to have some nice defaults but don't hesitate to tweak to your use case.
     non_label_column_names = [name for name in datasets["train"].columns if name != "label"]
     if "context" in non_label_column_names and "utterance" in non_label_column_names:
-        sentence1_key, sentence2_key = "context", "utterance"
+        if data_args.context_first:
+            sentence1_key, sentence2_key = "context", "utterance"
+        else:
+            sentence1_key, sentence2_key = "utterance", "context"
     else:
         if len(non_label_column_names) >= 2:
             sentence1_key, sentence2_key = non_label_column_names[:2]
@@ -315,7 +319,7 @@ def main():
     def preprocess_function(examples):
         # Tokenize the texts
         args = (
-            (examples[sentence1_key].tolist(),) if sentence2_key is None else (examples[sentence1_key].tolist(), examples[sentence2_key.tolist()])
+            (examples[sentence1_key].tolist(),) if sentence2_key is None else (examples[sentence1_key].tolist(), examples[sentence2_key].tolist())
         )
         result = tokenizer(*args, padding=padding, max_length=max_seq_length, truncation=True)
         if label_to_id is not None and "label" in examples:
@@ -341,10 +345,14 @@ def main():
         precision, recall, f1, support = precision_recall_fscore_support(p.label_ids, preds, average=None)
         return {
             "accuracy": (preds == p.label_ids).astype(np.float32).mean().item(),
-            "precision": precision,
-            "recall": recall,
-            "f1": f1,
-            "support": support
+            "precision": precision.tolist(),
+            "recall": recall.tolist(),
+            "f1": f1.tolist(),
+            "labels": label_list.tolist(),
+            "f1_macro": f1_score(p.label_ids, preds, average='macro'),
+            "f1_micro": f1_score(p.label_ids, preds, average='micro'),
+            "f1_weighted": f1_score(p.label_ids, preds, average='weighted'),
+            "support": support.tolist()
         }
 
     # Data collator will default to DataCollatorWithPadding, so we change it if we already did the padding.
@@ -356,7 +364,7 @@ def main():
         data_collator = None
 
     # Initialize our Trainer
-    trainer = Trainer(
+    trainer = MyTrainer(
         model=model,
         args=training_args,
         train_dataset=train_dataset,
@@ -379,57 +387,34 @@ def main():
 
         trainer.save_model()  # Saves the tokenizer too for easy upload
 
-        output_train_file = os.path.join(training_args.output_dir, "train_results.txt")
-        if trainer.is_world_process_zero():
-            with open(output_train_file, "w") as writer:
-                logger.info("***** Train results *****")
-                for key, value in sorted(metrics.items()):
-                    logger.info(f"  {key} = {value}")
-                    writer.write(f"{key} = {value}\n")
+        trainer.log_metrics("train", metrics)
+        trainer.save_metrics("train", metrics)
+        trainer.save_state()
+        with open(os.path.join(training_args.output_dir, "cmd_args.sh"), 'w') as f:
+            f.write(' '.join(['python'] + sys.argv))
 
-            # Need to save the state, since Trainer.save_model saves only the tokenizer with the model
-            trainer.state.save_to_json(os.path.join(training_args.output_dir, "trainer_state.json"))
-
-    # Evaluation
     eval_results = {}
+    # Evaluation
     if training_args.do_eval:
         logger.info("*** Evaluate ***")
-
         task = data_args.task_name
         eval_result = trainer.evaluate(eval_dataset=eval_dataset)
 
-        output_eval_file = os.path.join(training_args.output_dir, f"eval_results_{task}.txt")
-        if trainer.is_world_process_zero():
-            with open(output_eval_file, "w") as writer:
-                logger.info(f"***** Eval results {task} *****")
-                for key, value in sorted(eval_result.items()):
-                    logger.info(f"  {key} = {value}")
-                    writer.write(f"{key} = {value}\n")
+        trainer.log_metrics("eval", eval_result)
+        trainer.save_metrics("eval", eval_result)
+        eval_results.update(eval_result)
 
-            eval_results.update(eval_result)
-
+    # Test
     if training_args.do_predict:
+        predict_results = {}
         logger.info("*** Test ***")
+        task = data_args.task_name
+        eval_result = trainer.evaluate(eval_dataset=test_dataset)
+        trainer.log_metrics("test", eval_result)
+        trainer.save_metrics("test", eval_result)
+        eval_results.update(eval_result)
 
-        tasks = data_args.task_name
-        # Removing the `label` columns because it contains -1 and Trainer won't like that.
-        test_dataset.remove_columns_("label")
-        predictions = trainer.predict(test_dataset=test_dataset).predictions
-        predictions = np.squeeze(predictions) if is_regression else np.argmax(predictions, axis=1)
-
-        output_test_file = os.path.join(training_args.output_dir, f"test_results_{task}.txt")
-        if trainer.is_world_process_zero():
-            with open(output_test_file, "w") as writer:
-                logger.info(f"***** Test results {task} *****")
-                writer.write("index\tprediction\n")
-                for index, item in enumerate(predictions):
-                    if is_regression:
-                        writer.write(f"{index}\t{item:3.3f}\n")
-                    else:
-                        item = label_list[item]
-                        writer.write(f"{index}\t{item}\n")
     return eval_results
-
 
 def _mp_fn(index):
     # For xla_spawn (TPUs)

@@ -48,7 +48,7 @@ def main(tokenizer_name, files):
           continue
         dataset['utterance'].append(utterance)
         dataset['label'].append(label)
-    pd.DataFrame(dataset).to_csv(f"generated_data/{tokenizer_name}/concat_{file.split('/')[-1].split('.')[0]}.csv", index=False, sep='ך')
+    pd.DataFrame(dataset).to_csv(f"generated_data/{tokenizer_name}/concat/{file.split('/')[-1].split('.')[0]}.csv", index=False, sep='ך')
 
 if __name__ == '__main__':
     main(sys.argv[1], sys.argv[2:])

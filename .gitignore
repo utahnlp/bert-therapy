@@ -1,4 +1,4 @@
 /data/*
 /generated_data/*
 *.pyc
-output/**/*.py
+output/**/*
