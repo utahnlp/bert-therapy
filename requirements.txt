@@ -1,0 +1,42 @@
+apex @ file:///uusoc/scratch/res/arch/students/sunkaraneni/apex
+brotlipy==0.7.0
+certifi==2020.12.5
+cffi @ file:///tmp/build/80754af9/cffi_1613246945912/work
+chardet==4.0.0
+click==7.1.2
+cryptography @ file:///tmp/build/80754af9/cryptography_1613400861696/work
+datasets==1.3.0
+dill==0.3.3
+filelock==3.0.12
+fsspec==0.8.7
+huggingface-hub==0.0.2
+idna==2.10
+joblib==1.0.1
+mkl-fft==1.3.0
+mkl-random==1.1.1
+mkl-service==2.3.0
+multiprocess==0.70.11.1
+numpy @ file:///tmp/build/80754af9/numpy_and_numpy_base_1603570489231/work
+packaging==20.9
+pandas==1.2.2
+pyarrow==3.0.0
+pycparser @ file:///tmp/build/80754af9/pycparser_1594388511720/work
+pyOpenSSL @ file:///tmp/build/80754af9/pyopenssl_1608057966937/work
+pyparsing==2.4.7
+PySocks @ file:///tmp/build/80754af9/pysocks_1605305779399/work
+python-dateutil @ file:///home/ktietz/src/ci/python-dateutil_1611928101742/work
+pytz @ file:///tmp/build/80754af9/pytz_1612215392582/work
+regex==2020.11.13
+requests==2.25.1
+sacremoses==0.0.43
+scikit-learn==0.24.1
+scipy==1.6.1
+six @ file:///tmp/build/80754af9/six_1605205327372/work
+threadpoolctl==2.1.0
+tokenizers==0.10.1
+torch==1.7.1
+tqdm @ file:///tmp/build/80754af9/tqdm_1611857934208/work
+-e git+https://github.com/huggingface/transformers.git@3c733f320870261ea948049505a30c30fd6ea23a#egg=transformers
+typing-extensions @ file:///home/ktietz/src/ci_mi/typing_extensions_1612808209620/work
+urllib3 @ file:///tmp/build/80754af9/urllib3_1611694770489/work
+xxhash==2.0.0
