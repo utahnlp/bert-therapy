@@ -69,7 +69,7 @@ class DataTrainingArguments:
         metadata={"help": "The name of the task to train on: " + ", ".join(task_to_keys.keys())},
     )
     max_seq_length: int = field(
-        default=128,
+        default=512,
         metadata={
             "help": "The maximum total input sequence length after tokenization. Sequences longer "
             "than this will be truncated, sequences shorter will be padded."
@@ -79,7 +79,7 @@ class DataTrainingArguments:
         default=False, metadata={"help": "Overwrite the cached preprocessed datasets or not."}
     )
     pad_to_max_length: bool = field(
-        default=True,
+        default=False,
         metadata={
             "help": "Whether to pad all samples to `max_seq_length`. "
             "If False, will pad the samples dynamically when batching to the maximum length in the batch."
@@ -282,7 +282,7 @@ def main():
     embeddings = model.resize_token_embeddings(len(tokenizer)) # doesn't mess with existing tokens
 
     if model_args.copy_sep:
-        embeddings.weight.data[tokenizer.additional_special_tokens_ids, :] = embeddings.weight.data[tokenizer.cls_token_id, :].repeat(num_added_tokens, 1)
+        embeddings.weight.data[tokenizer.additional_special_tokens_ids, :] = embeddings.weight.data[tokenizer.sep_token_id, :].repeat(num_added_tokens, 1)
     ###################
 
     # Preprocessing the datasets
@@ -311,7 +311,7 @@ def main():
 
     if data_args.max_seq_length > tokenizer.model_max_length:
         logger.warn(
-            f"The max_seq_length passed ({data_args.max_seq_length}) is larger than the maximum length for the"
+            f"The max_seq_length passed ({data_args.max_seq_length}) is larger than the maximum length for the "
             f"model ({tokenizer.model_max_length}). Using max_seq_length={tokenizer.model_max_length}."
         )
     max_seq_length = min(data_args.max_seq_length, tokenizer.model_max_length)
@@ -321,7 +321,7 @@ def main():
         args = (
             (examples[sentence1_key].tolist(),) if sentence2_key is None else (examples[sentence1_key].tolist(), examples[sentence2_key].tolist())
         )
-        result = tokenizer(*args, padding=padding, max_length=max_seq_length, truncation=True)
+        result = tokenizer(*args, padding=padding, max_length=max_seq_length, truncation=False)
         if label_to_id is not None and "label" in examples:
             result["label"] = [label_to_id[l] for l in examples["label"]]
         return result

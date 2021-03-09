@@ -10,7 +10,7 @@ def main(tokenizer_name, files):
   tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
   tokenizer.add_special_tokens({'additional_special_tokens': ['<T>', '</T>', '<P>', '</P>', '<U>', '</U>']})
 
-  max_length = 512
+  max_length = tokenizer.model_max_length
   max_context_length = 8
   lru_tokenize=lru_encode(tokenizer)
 
@@ -27,7 +27,7 @@ def main(tokenizer_name, files):
         current_context, length = [], 6 # 4 span + 2
         utterance = example['options-for-correct-answers'][0]
         label = f"{utterance['speaker']}_" + utterance['agg_label']
-        utterance = f"<U><{utterance['speaker']}>" + utterance['utterance'] + f"</{utterance['speaker']}></U>"
+        utterance = f"<U><{utterance['speaker']}>" + utterance['utterance'].strip() + f"</{utterance['speaker']}></U>"
         length += len(lru_tokenize(utterance))
         if length > max_length:
           continue # skip examples where the utterance crosses the max length
@@ -46,7 +46,15 @@ def main(tokenizer_name, files):
             break
           current_context.insert(0, context_utterance)
         if len(current_context) > 0:
-          dataset['context'].append(f"".join(current_context))
+          context_joined = current_context[0]
+          for idx, context_msg in enumerate(current_context):
+            if idx == 0:
+              continue
+            if context_msg[:3] == current_context[idx-1][:3]:
+              context_joined = context_joined[:-4].strip() + ' ' + context_msg[3:].strip()
+            else:
+              context_joined += context_msg
+          dataset['context'].append(context_joined)
         else:
           continue
         dataset['utterance'].append(utterance)

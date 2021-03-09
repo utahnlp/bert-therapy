@@ -35,6 +35,7 @@
             "id": "CHECKPOINT",
             "description": "Best checkpoint?",
             "options": [
+                "2000",
                 "4000",
                 "6000",
                 "8000",
@@ -62,7 +63,6 @@
                 "--model_name_or_path", "${input:MODEL}",
                 "--copy_sep",
                 "--task_name", "${input:TASK}",
-                "--no_pad_to_max_length" ,
                 "--train_file", "./generated_data/${input:MODEL}/${input:TASK}/train.csv" ,
                 "--validation_file", "./generated_data/${input:MODEL}/${input:TASK}/dev.csv" ,
                 "--output_dir", "./output/${input:MODEL}/${input:TASK}/" ,
@@ -80,7 +80,7 @@
                 "--load_best_model_at_end",
                 "--eval_steps", "2000",
                 "--evaluation_strategy", "steps",
-                "--metric_for_best_model", "f1_weighted",
+                "--metric_for_best_model", "f1_macro",
                 "--label_smoothing_factor", "0.1",
                 "--overwrite_output_dir"
             ]
@@ -94,7 +94,6 @@
             "args": [
                 "--model_name_or_path", "output/${input:MODEL}/${input:TASK}/checkpoint-${input:CHECKPOINT}",
                 "--task_name", "${input:TASK}",
-                "--no_pad_to_max_length", 
                 "--train_file", "./generated_data/${input:MODEL}/${input:TASK}/train.csv",
                 "--validation_file", "./generated_data/${input:MODEL}/${input:TASK}/dev.csv",
                 "--test_file", "./generated_data/${input:MODEL}/${input:TASK}/test.csv",

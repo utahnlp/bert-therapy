@@ -8,7 +8,7 @@ from text_processor import lru_encode
 
 def main(tokenizer_name, files):
   tokenizer = AutoTokenizer.from_pretrained(tokenizer_name, use_fast=True)
-  max_length = 512
+  max_length = tokenizer.model_max_length
   max_context_length = 8
   lru_tokenize=lru_encode(tokenizer)
 
