@@ -10,6 +10,7 @@ class MyTrainer(Trainer):
         Subclass and override for custom behavior.
         """
         labels = inputs.pop("labels")
+        # here, unfold the input into model
         outputs = model(**inputs)
         if self.args.past_index >= 0:
             self._past = outputs[self.args.past_index]

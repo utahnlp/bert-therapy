@@ -20,6 +20,7 @@ import logging
 import os
 import random
 import sys
+import re
 from dataclasses import dataclass, field
 from typing import Optional, List
 from sklearn.metrics import precision_recall_fscore_support, f1_score
@@ -27,8 +28,10 @@ from sklearn.metrics import precision_recall_fscore_support, f1_score
 import numpy as np
 import pandas as pd
 from datasets import Dataset
+from misc_config import MISCConfig
 
 import transformers
+
 from transformers import (
     AutoConfig,
     AutoModelForSequenceClassification,
@@ -42,7 +45,9 @@ from transformers import (
     set_seed,
 )
 from transformers.trainer_utils import get_last_checkpoint, is_main_process
+from misc_bert import MISCBERTModel, MISCClassificationHead
 from my_trainer import MyTrainer
+import misc_constants
 
 task_to_keys = {
     "utter": ("utterance", None),
@@ -98,7 +103,7 @@ class DataTrainingArguments:
     )
     ## custom
     tokenizer_additional_tokens: Optional[List[str]] = field(
-        default_factory= lambda: ['<P>', '</P>', '<T>', '</T>', '<U>', '</U>'],
+        default_factory= lambda: [misc_constants.PATIENT_START_TAG, misc_constants.PATIENT_END_TAG, misc_constants.THERAPIST_START_TAG, misc_constants.THERAPIST_END_TAG, misc_constants.UTTER_START_TAG, misc_constants.UTTER_END_TAG],
         metadata={
             "help": "Additional tokens to add to the tokenizer"
         },
@@ -121,9 +126,11 @@ class ModelArguments:
     """
     Arguments pertaining to which model/config/tokenizer we are going to fine-tune from.
     """
-
+    encoder_model_name_or_path: str = field(
+        metadata={"help": "Path to pretrained encoder model or model identifier from huggingface.co/models"}
+    )
     model_name_or_path: str = field(
-        metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
+        default="", metadata={"help": "Path to pretrained model or model identifier from huggingface.co/models"}
     )
     config_name: Optional[str] = field(
         default=None, metadata={"help": "Pretrained config name or path if not the same as model_name"}
@@ -154,6 +161,24 @@ class ModelArguments:
         default=False,
         metadata={
             "help": "Initialized any additional tokens to the value of tokenizer.cls_token."
+        },
+    )
+    use_CLS: bool = field(
+        default=True,
+        metadata={
+            "help": "Whether use CLS for classification head."
+        },
+    )
+    use_start_U: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether use the start U tag for classification head."
+        },
+    )
+    use_end_U: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether use the end U tag for classification head."
         },
     )
 
@@ -253,38 +278,74 @@ def main():
     #
     # In distributed training, the .from_pretrained methods guarantee that only one local process can concurrently
     # download model & vocab.
-    config = AutoConfig.from_pretrained(
-        model_args.config_name if model_args.config_name else model_args.model_name_or_path,
-        num_labels=num_labels,
-        finetuning_task=data_args.task_name,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
-    tokenizer = AutoTokenizer.from_pretrained(
-        model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
-        cache_dir=model_args.cache_dir,
-        use_fast=model_args.use_fast_tokenizer,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
-    model = AutoModelForSequenceClassification.from_pretrained(
-        model_args.model_name_or_path,
-        from_tf=bool(".ckpt" in model_args.model_name_or_path),
-        config=config,
-        cache_dir=model_args.cache_dir,
-        revision=model_args.model_revision,
-        use_auth_token=True if model_args.use_auth_token else None,
-    )
 
-    # Custom tokens
-    num_added_tokens = tokenizer.add_special_tokens({'additional_special_tokens': data_args.tokenizer_additional_tokens })
-    embeddings = model.resize_token_embeddings(len(tokenizer)) # doesn't mess with existing tokens
+    # for the original config, we add in extra configurations to support other variants such as classification head, simply by assign values to those attributes, the type of config class is according to the model_name or path, or model_type in the config dict
 
-    if model_args.copy_sep:
-        embeddings.weight.data[tokenizer.additional_special_tokens_ids, :] = embeddings.weight.data[tokenizer.cls_token_id, :].repeat(num_added_tokens, 1)
-    ###################
+    # here, model is for the whole MISC BERT model, not for the BERT encoder models.
+    if model_args.model_name_or_path:
+        config = MISCConfig.from_pretrained(
+            model_args.config_name if model_args.config_name else model_args.model_name_or_path,
+            num_labels=num_labels,
+            finetuning_task=data_args.task_name,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
+        # no need to specifiy the args when loading model
+        logger.info("config is {}".format(config))
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_args.tokenizer_name if model_args.tokenizer_name else model_args.model_name_or_path,
+            cache_dir=model_args.cache_dir,
+            use_fast=model_args.use_fast_tokenizer,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
 
+        model = MISCBERTModel.from_pretrained(
+            model_args.model_name_or_path,
+            from_tf=bool(".ckpt" in model_args.model_name_or_path),
+            config=config,
+            tokenizer=tokenizer
+        )
+    else:
+        logger.info("{} is not existed, training model from scratch and load encoder_model_name_or_path".format(model_args.model_name_or_path))
+        config = MISCConfig()
+        encoder_config = MISCConfig.from_pretrained(
+            model_args.config_name if model_args.config_name else model_args.encoder_model_name_or_path,
+            num_labels=num_labels,
+            finetuning_task=data_args.task_name,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
+        config.update_config(
+            encoder_model_name_or_path=model_args.encoder_model_name_or_path,
+            use_CLS=model_args.use_CLS,
+            use_start_U=model_args.use_start_U,
+            use_end_U=model_args.use_end_U,
+            cache_dir=model_args.cache_dir,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
+        config.update_encoder_config(encoder_config)
+        logger.info("config is {}".format(config))
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_args.tokenizer_name if model_args.tokenizer_name else model_args.encoder_model_name_or_path,
+            cache_dir=model_args.cache_dir,
+            use_fast=model_args.use_fast_tokenizer,
+            revision=model_args.model_revision,
+            use_auth_token=True if model_args.use_auth_token else None,
+        )
+
+        # Custom tokens
+        num_added_tokens = tokenizer.add_special_tokens({'additional_special_tokens': data_args.tokenizer_additional_tokens })
+        model = MISCBERTModel(
+            config=config,
+            tokenizer=tokenizer
+        )
+        embeddings = model.encoder.resize_token_embeddings(len(tokenizer)) # doesn't mess with existing tokens
+        if model_args.copy_sep:
+            embeddings.weight.data[tokenizer.additional_special_tokens_ids, :] = embeddings.weight.data[tokenizer.sep_token_id, :].repeat(num_added_tokens, 1)
     # Preprocessing the datasets
     # Again, we try to have some nice defaults but don't hesitate to tweak to your use case.
     non_label_column_names = [name for name in datasets["train"].columns if name != "label"]
@@ -299,6 +360,7 @@ def main():
         else:
             sentence1_key, sentence2_key = non_label_column_names[0], None
 
+    logger.info(" Using sentence1_key = {}, sentence2_key = {}".format(sentence1_key, sentence2_key))
     # Padding strategy
     if data_args.pad_to_max_length:
         padding = "max_length"
@@ -315,13 +377,81 @@ def main():
             f"model ({tokenizer.model_max_length}). Using max_seq_length={tokenizer.model_max_length}."
         )
     max_seq_length = min(data_args.max_seq_length, tokenizer.model_max_length)
+    logger.info(" Using max_seq_length = {}, padding = {}".format(max_seq_length, padding))
+    logger.info("  Model Architecture = %s", model)
 
     def preprocess_function(examples):
         # Tokenize the texts
-        args = (
-            (examples[sentence1_key].tolist(),) if sentence2_key is None else (examples[sentence1_key].tolist(), examples[sentence2_key].tolist())
+        # https://github.com/huggingface/transformers/blob/e6ce636e02ec1cd3f9893af6ab1eec4f113025db/src/transformers/tokenization_utils_base.py#L2110
+        # all the default truncation will break the paired tags. We use our own truncation
+        batch_input_ids = []
+        if sentence2_key is None:
+            # only has the utterance, then we truncate the utterance, but adding the end tags
+            for snt in examples[sentence1_key].tolist():
+                total_length = max_seq_length - tokenizer.num_special_tokens_to_add(pair=False)
+                all_subwords1 = tokenizer.tokenize(snt)
+                # check the paired tags only when speaker_span
+                if data_args.task_name == 'speaker_span' and len(all_subwords1) >= total_length:
+                    # the last two tag are not splittable.
+                    all_subwords1[total_length-1] = all_subwords1[-1]
+                    all_subwords1[total_length-2] = all_subwords1[-2]
+                    all_subwords1 = all_subwords1[:total_length]
+                subwords1_ids = tokenizer.convert_tokens_to_ids(all_subwords1)
+                subwords2_ids = None
+                batch_input_ids.append((subwords1_ids, subwords2_ids2))
+        else:
+            # for sentence pair
+            # we truncate the context first, but adding the end tags
+            for idx, (snt1,snt2) in enumerate(zip(examples[sentence1_key].tolist(), examples[sentence2_key].tolist())):
+                total_length = max_seq_length - tokenizer.num_special_tokens_to_add(pair=True)
+                current_subwords1 = []
+                current_subwords2 = []
+                all_subwords1 = tokenizer.tokenize(snt1)
+                # check the paired tags only when speaker_span
+                if 'speaker_span' in data_args.task_name and len(all_subwords1) >= total_length:
+                    # the last two tag are not splittable.
+                    all_subwords1[total_length-1] = all_subwords1[-1]
+                    all_subwords1[total_length-2] = all_subwords1[-2]
+                    all_subwords1 = all_subwords1[:total_length]
+                subwords1_ids = tokenizer.convert_tokens_to_ids(all_subwords1)
+
+                all_subwords2 = tokenizer.tokenize(snt2)
+                total_length_for_2 = total_length - len(all_subwords1)
+                all_subwords2 = all_subwords2[:total_length_for_2]
+                subwords2_ids = tokenizer.convert_tokens_to_ids(all_subwords2)
+                batch_input_ids.append((subwords1_ids, subwords2_ids))
+
+        batch_outputs = {}
+        for idx, (first_ids, second_ids) in enumerate(batch_input_ids):
+            # setting it as False wil have a warning from pytorch, but we don't need truncation any more after the previous
+            outputs = tokenizer.prepare_for_model(
+                first_ids,
+                second_ids,
+                add_special_tokens=True,
+                padding=padding,  # we pad in batch afterward
+                truncation=False,
+                max_length=max_seq_length,
+                return_attention_mask=True,  # we pad in batch afterward
+                return_token_type_ids=True,
+            )
+
+            if len(outputs['input_ids']) != len(outputs['token_type_ids']):
+                logger.error("for {}, invalid length {}, {}".format('token_type_ids', len(outputs['input_ids']), len(outputs['token_type_ids']), outputs['token_type_ids']))
+            if len(outputs['input_ids']) != len(outputs['attention_mask']):
+                logger.error("for {}, invalid length {}, {}".format('attention_mask', len(outputs['input_ids']), outputs['attention_mask']))
+
+            for key, value in outputs.items():
+                if key not in batch_outputs:
+                    batch_outputs[key] = []
+                batch_outputs[key].append(value)
+
+        result = tokenizer.pad(
+            batch_outputs,
+            padding=padding,
+            max_length=max_seq_length,
+            return_attention_mask=True
         )
-        result = tokenizer(*args, padding=padding, max_length=max_seq_length, truncation=True)
+
         if label_to_id is not None and "label" in examples:
             result["label"] = [label_to_id[l] for l in examples["label"]]
         return result
