@@ -55,6 +55,7 @@ class MISCBERTModel(PreTrainedModel):
         self.encoder.resize_token_embeddings(len(tokenizer)) # doesn't mess with existing tokens
         setattr(self, self.base_model_prefix, torch.nn.Sequential())
         self.classifier = MISCClassificationHead(config)
+        # we always use the pretrained BERT, no need for init_weights.
 
     def forward(
         self,
@@ -109,6 +110,7 @@ class MISCBERTModel(PreTrainedModel):
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
         )
+        # only use the sequence output, not the pooled_output
         sequence_output = outputs[0]
         logits = self.classifier(sequence_output, cls_head_indices=head_indices)
 

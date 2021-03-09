@@ -2,3 +2,4 @@
 /generated_data/*
 *.pyc
 output/**/*
+*.tar

@@ -379,17 +379,22 @@ def main():
     max_seq_length = min(data_args.max_seq_length, tokenizer.model_max_length)
     logger.info(" Using max_seq_length = {}, padding = {}".format(max_seq_length, padding))
     logger.info("  Model Architecture = %s", model)
+    logger.info("  Trainable Model Parameters = %s", sum(p.numel() for p in model.parameters() if p.requires_grad))
 
     def preprocess_function(examples):
         # Tokenize the texts
         # https://github.com/huggingface/transformers/blob/e6ce636e02ec1cd3f9893af6ab1eec4f113025db/src/transformers/tokenization_utils_base.py#L2110
         # all the default truncation will break the paired tags. We use our own truncation
         batch_input_ids = []
+        from collections import Counter
+        cnt = Counter()
         if sentence2_key is None:
             # only has the utterance, then we truncate the utterance, but adding the end tags
+            num_special_tokens = tokenizer.num_special_tokens_to_add(pair=False)
             for snt in examples[sentence1_key].tolist():
-                total_length = max_seq_length - tokenizer.num_special_tokens_to_add(pair=False)
+                total_length = max_seq_length - num_speaker_tokens
                 all_subwords1 = tokenizer.tokenize(snt)
+                ori_snt1_len = len(all_subwords1)
                 # check the paired tags only when speaker_span
                 if data_args.task_name == 'speaker_span' and len(all_subwords1) >= total_length:
                     # the last two tag are not splittable.
@@ -399,14 +404,17 @@ def main():
                 subwords1_ids = tokenizer.convert_tokens_to_ids(all_subwords1)
                 subwords2_ids = None
                 batch_input_ids.append((subwords1_ids, subwords2_ids2))
+                cnt[ori_snt1_len + num_special_tokens] += 1
         else:
             # for sentence pair
             # we truncate the context first, but adding the end tags
+            num_special_tokens = tokenizer.num_special_tokens_to_add(pair=True)
             for idx, (snt1,snt2) in enumerate(zip(examples[sentence1_key].tolist(), examples[sentence2_key].tolist())):
-                total_length = max_seq_length - tokenizer.num_special_tokens_to_add(pair=True)
+                total_length = max_seq_length - num_special_tokens
                 current_subwords1 = []
                 current_subwords2 = []
                 all_subwords1 = tokenizer.tokenize(snt1)
+                ori_snt1_len = len(all_subwords1)
                 # check the paired tags only when speaker_span
                 if 'speaker_span' in data_args.task_name and len(all_subwords1) >= total_length:
                     # the last two tag are not splittable.
@@ -416,10 +424,19 @@ def main():
                 subwords1_ids = tokenizer.convert_tokens_to_ids(all_subwords1)
 
                 all_subwords2 = tokenizer.tokenize(snt2)
+                ori_snt2_len = len(all_subwords2)
                 total_length_for_2 = total_length - len(all_subwords1)
                 all_subwords2 = all_subwords2[:total_length_for_2]
                 subwords2_ids = tokenizer.convert_tokens_to_ids(all_subwords2)
                 batch_input_ids.append((subwords1_ids, subwords2_ids))
+                cnt[ori_snt1_len + ori_snt2_len + num_special_tokens] += 1
+
+        histgram_key = [128, 256, 512]
+        for m in histgram_key:
+           summ = sum([c  for k, c in cnt.items() if k > m])
+           logger.info("{}/{} examples have larger length than {}".format(summ, len(examples[sentence1_key]), m))
+
+
 
         batch_outputs = {}
         for idx, (first_ids, second_ids) in enumerate(batch_input_ids):
@@ -445,16 +462,17 @@ def main():
                     batch_outputs[key] = []
                 batch_outputs[key].append(value)
 
-        result = tokenizer.pad(
-            batch_outputs,
-            padding=padding,
-            max_length=max_seq_length,
-            return_attention_mask=True
-        )
+        # no need for padding for all
+        #result = tokenizer.pad(
+        #    batch_outputs,
+        #    padding=padding,
+        #    max_length=max_seq_length,
+        #    return_attention_mask=True
+        #)
 
         if label_to_id is not None and "label" in examples:
-            result["label"] = [label_to_id[l] for l in examples["label"]]
-        return result
+            batch_outputs["label"] = [label_to_id[l] for l in examples["label"]]
+        return batch_outputs
 
     datasets = {k: preprocess_function(v) for k, v in datasets.items()}
 
