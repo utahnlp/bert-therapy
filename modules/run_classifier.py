@@ -16,8 +16,8 @@
 """ Finetuning the library models for sequence classification on GLUE."""
 # You can also adapt this script on your own text classification task. Pointers for this are left as comments.
 
-import logging
 import os
+import logging
 import random
 import sys
 import re
@@ -29,6 +29,7 @@ import numpy as np
 import pandas as pd
 from datasets import Dataset
 from misc_config import MISCConfig
+import misc_constants
 
 import transformers
 
@@ -58,6 +59,16 @@ task_to_keys = {
 }
 
 logger = logging.getLogger(__name__)
+
+@dataclass
+class MISCTrainingArguments(TrainingArguments):
+    # adding special training arguments
+    special_token_lr: Optional[float]= field(
+        default=None,
+        metadata={
+            "help": "Whether using learning rate for special tokens."
+        },
+    )
 
 
 @dataclass
@@ -103,7 +114,7 @@ class DataTrainingArguments:
     )
     ## custom
     tokenizer_additional_tokens: Optional[List[str]] = field(
-        default_factory= lambda: [misc_constants.PATIENT_START_TAG, misc_constants.PATIENT_END_TAG, misc_constants.THERAPIST_START_TAG, misc_constants.THERAPIST_END_TAG, misc_constants.UTTER_START_TAG, misc_constants.UTTER_END_TAG],
+        default_factory= lambda: misc_constants.special_speaker_tags,
         metadata={
             "help": "Additional tokens to add to the tokenizer"
         },
@@ -119,6 +130,7 @@ class DataTrainingArguments:
             assert (
                 validation_extension == train_extension
             ), "`validation_file` should have the same extension (csv or json) as `train_file`."
+
 
 
 @dataclass
@@ -188,7 +200,7 @@ def main():
     # or by passing the --help flag to this script.
     # We now keep distinct sets of args, for a cleaner separation of concerns.
 
-    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, TrainingArguments))
+    parser = HfArgumentParser((ModelArguments, DataTrainingArguments, MISCTrainingArguments))
     if len(sys.argv) == 2 and sys.argv[1].endswith(".json"):
         # If we pass only one argument to the script and it's the path to a json file,
         # let's parse it to get our arguments.
@@ -289,8 +301,10 @@ def main():
             finetuning_task=data_args.task_name,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
+            special_token_lr=training_args.special_token_lr,
             use_auth_token=True if model_args.use_auth_token else None,
         )
+
         # no need to specifiy the args when loading model
         logger.info("config is {}".format(config))
         tokenizer = AutoTokenizer.from_pretrained(
@@ -325,8 +339,11 @@ def main():
             use_CLS=model_args.use_CLS,
             use_start_U=model_args.use_start_U,
             use_end_U=model_args.use_end_U,
+            tokenizer_name=model_args.tokenizer_name,
+            use_fast=model_args.use_fast_tokenizer,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
+            special_token_lr=training_args.special_token_lr,
             use_auth_token=True if model_args.use_auth_token else None,
         )
         config.update_encoder_config(encoder_config)

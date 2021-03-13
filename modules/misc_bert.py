@@ -5,8 +5,8 @@
 # Description        : Auto version for using <CLS> and other tags for classification head
 # --------------------------------------------------------------------
 
-import logging
 import collections
+import logging
 import re
 import os
 import numpy as np
@@ -44,6 +44,7 @@ class MISCBERTModel(PreTrainedModel):
         super(MISCBERTModel, self).__init__(config=config)
         self.num_labels = config.num_labels
         self.config = config
+        self.misc_special_embeddings = None
 
         # config is the configuration for pretrained model
         self.encoder = AutoModel.from_pretrained(config.encoder_model_name_or_path,
@@ -53,18 +54,36 @@ class MISCBERTModel(PreTrainedModel):
         )
         if tokenizer:
             self.tokenizer = tokenizer
-            self.encoder.resize_token_embeddings(len(tokenizer)) # doesn't mess with existing tokens
+            if 'special_token_lr' not in config.__dict__ or not config.special_token_lr:
+                self.encoder.resize_token_embeddings(len(tokenizer)) # doesn't mess with existing tokens
+            else:
+                # nn.Module
+                old_embeddings = self.encoder.get_input_embeddings()
+                self.misc_special_embeddings = nn.Embedding(len(misc_constants.special_speaker_tags), old_embeddings.weight.size()[-1])
+                self.encoder._init_weights(self.misc_special_embeddings)
+                concat_embeddings = torch.cat([old_embeddings.weight, self.misc_special_embeddings.weight])
+                concat_embeddings_layer = nn.Embedding.from_pretrained(concat_embeddings)
+                self.encoder.set_input_embeddings(concat_embeddings_layer)
         else:
             self.tokenizer = AutoTokenizer.from_pretrained(
-                model_args.tokenizer_name if config.tokenizer_name else config.encoder_model_name_or_path,
+                config.tokenizer_name if config.tokenizer_name else config.encoder_model_name_or_path,
                 cache_dir=config.cache_dir,
                 use_fast=config.use_fast_tokenizer,
                 revision=config.model_revision,
                 use_auth_token=True if config.use_auth_token else None,
             )
             # still load original tokenizer, add readd the new special tokens
-            num_added_tokens = self.tokenizer.add_special_tokens({'additional_special_tokens': [misc_constants.PATIENT_START_TAG, misc_constants.PATIENT_END_TAG, misc_constants.THERAPIST_START_TAG, misc_constants.THERAPIST_END_TAG, misc_constants.UTTER_START_TAG, misc_constants.UTTER_END_TAG]})
-            self.encoder.resize_token_embeddings(len(self.tokenizer)) # doesn't mess with existing tokens
+            num_added_tokens = self.tokenizer.add_special_tokens({'additional_special_tokens': misc_constants.special_speaker_tags})
+            if 'special_token_lr' not in config.__dict__ or not config.special_token_lr:
+                self.encoder.resize_token_embeddings(len(tokenizer)) # doesn't mess with existing tokens
+            else:
+                # nn.Module
+                old_embeddings = self.encoder.get_input_embeddings()
+                self.misc_special_embeddings = nn.Embedding(len(misc_constants.special_speaker_tags), old_embeddings.weight.size()[-1])
+                self.encoder._init_weights(self.misc_special_embeddings)
+                concat_embeddings = torch.cat([old_embeddings.weight, self.misc_special_embeddings.weight])
+                concat_embeddings_layer = nn.Embedding.from_pretrained(concat_embeddings)
+                self.encoder.set_input_embeddings(concat_embeddings_layer)
 
         # not use base for BERT
         setattr(self, self.base_model_prefix, torch.nn.Sequential())
