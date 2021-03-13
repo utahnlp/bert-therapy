@@ -30,6 +30,24 @@ CLS_PRETRAINED_MODEL_ARCHIVE_MAP = {
 
 }
 
+class MergedEmbedding(nn.Embedding):
+    def __init__(self, embedding1layer, misc_special_embedding_layer):
+        dim1 = embedding1layer.weight.size()[1]
+        dim2 = misc_special_embedding_layer.weight.size()[1]
+        assert dim1 == dim2, "misc_special_embedding_layer weight is no consistent{} with dim1 = {}, dim2={}".format(dim1,dim2)
+        num = embedding1layer.weight.size()[0]+misc_special_embedding_layer.weight.size()[0]
+        super(MergedEmbedding, self).__init__(num_embeddings=num, embedding_dim=dim1)
+        self.embedding1 = embedding1layer
+        self.misc_special_embedding = misc_special_embedding_layer
+        self.merged_weight = torch.cat([self.embedding1.weight, self.misc_special_embedding.weight], 0)
+
+    def foward(self, input: torch.Tensor) -> torch.Tensor:
+        return F.embedding(
+            input, self.merged_weight, self.padding_idx, self.max_norm,
+            self.norm_type, self.scale_grad_by_freq, self.sparse)
+
+
+
 class MISCBERTModel(PreTrainedModel):
     """
     Main entry of MISC BERT model, this model is based on transformer BERT, but only different in classfier design .
@@ -61,15 +79,14 @@ class MISCBERTModel(PreTrainedModel):
                 old_embeddings = self.encoder.get_input_embeddings()
                 self.misc_special_embeddings = nn.Embedding(len(misc_constants.special_speaker_tags), old_embeddings.weight.size()[-1])
                 self.encoder._init_weights(self.misc_special_embeddings)
-                concat_embeddings = torch.cat([old_embeddings.weight, self.misc_special_embeddings.weight])
-                concat_embeddings_layer = nn.Embedding.from_pretrained(concat_embeddings)
-                self.encoder.set_input_embeddings(concat_embeddings_layer)
+                merged_embeddings = MergedEmbedding(old_embeddings, self.misc_special_embeddings)
+                self.encoder.set_input_embeddings(merged_embeddings)
         else:
             self.tokenizer = AutoTokenizer.from_pretrained(
                 config.tokenizer_name if config.tokenizer_name else config.encoder_model_name_or_path,
                 cache_dir=config.cache_dir,
                 use_fast=config.use_fast_tokenizer,
-                revision=config.model_revision,
+                revision=config.revision,
                 use_auth_token=True if config.use_auth_token else None,
             )
             # still load original tokenizer, add readd the new special tokens
@@ -81,9 +98,8 @@ class MISCBERTModel(PreTrainedModel):
                 old_embeddings = self.encoder.get_input_embeddings()
                 self.misc_special_embeddings = nn.Embedding(len(misc_constants.special_speaker_tags), old_embeddings.weight.size()[-1])
                 self.encoder._init_weights(self.misc_special_embeddings)
-                concat_embeddings = torch.cat([old_embeddings.weight, self.misc_special_embeddings.weight])
-                concat_embeddings_layer = nn.Embedding.from_pretrained(concat_embeddings)
-                self.encoder.set_input_embeddings(concat_embeddings_layer)
+                merged_embeddings = MergedEmbedding(old_embeddings, self.misc_special_embeddings)
+                self.encoder.set_input_embeddings(merged_embeddings)
 
         # not use base for BERT
         setattr(self, self.base_model_prefix, torch.nn.Sequential())

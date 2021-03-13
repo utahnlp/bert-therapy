@@ -545,6 +545,7 @@ def main():
 
     # Training
     if training_args.do_train:
+        logger.info("Trainer Optimizer:{}".format(trainer.optimizer))
         if last_checkpoint is not None:
             checkpoint = last_checkpoint
         elif os.path.isdir(model_args.model_name_or_path):

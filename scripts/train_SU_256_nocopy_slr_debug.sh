@@ -10,31 +10,33 @@ EVAL_DIR=$HOME/git-workspace/bert-therapy/
 gpuid=$1
 task_name=$2
 encoder_name=$3
-model_name_or_path=$4
 
-EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/CLS_256/
+EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/speaker_span_SU_256_no_copysep_slr_debug/
 DATA_DIR=$EVAL_DIR/generated_data/$encoder_name/$task_name/
 
 ### CHECK WORK & DATA DIR
-if [ ! -e ${EXP_DIR} ]; then
-  echo "folder does not exist:"${EXP_DIR}
-  exit -1
+if [ -e ${EXP_DIR} ]; then
+  today=`date +%m-%d.%H:%M`
+  mv ${EXP_DIR} ${EXP_DIR%?}_${today}
+  echo "rename original training folder to "${EXP_DIR%?}_${today}
 fi
 
+mkdir -p $EXP_DIR
+
 pargs="
---encoder_model_name_or_path $encoder_name
---model_name_or_path $model_name_or_path
---copy_sep
+--encoder_model_name_or_path $encoder_name \
 --task_name $task_name \
---use_CLS \
+--use_CLS=false \
+--use_start_U \
+--special_token_lr=2e-4 \
 --no_pad_to_max_length \
 --train_file $DATA_DIR/train.csv \
 --validation_file $DATA_DIR/dev.csv \
---test_file $DATA_DIR/test.csv \
 --output_dir $EXP_DIR \
---do_predict \
+--do_train \
+--do_eval \
 --fp16 \
---per_device_train_batch_size 64 \
+--per_device_train_batch_size 2 \
 --adafactor \
 --group_by_length \
 --learning_rate 2e-5 \
@@ -42,7 +44,7 @@ pargs="
 --weight_decay 0.1 \
 --num_train_epochs 7 \
 --load_best_model_at_end \
---eval_steps 2000 \
+--eval_steps 1000 \
 --max_seq_length 256 \
 --evaluation_strategy steps \
 --metric_for_best_model f1_macro \
@@ -51,5 +53,5 @@ pargs="
 "
 
 pushd $EVAL_DIR
-CUDA_VISIBLE_DEVICES=$gpuid python modules/run_classifier.py $pargs 2>&1 &> $EXP_DIR/eval.log
+CUDA_VISIBLE_DEVICES=$gpuid python modules/run_classifier.py $pargs
 popd

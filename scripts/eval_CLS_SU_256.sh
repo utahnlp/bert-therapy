@@ -12,7 +12,7 @@ task_name=$2
 encoder_name=$3
 model_name_or_path=$4
 
-EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/CLS_256/
+EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/speaker_span_CLS_SU_256/
 DATA_DIR=$EVAL_DIR/generated_data/$encoder_name/$task_name/
 
 ### CHECK WORK & DATA DIR
@@ -27,6 +27,8 @@ pargs="
 --copy_sep
 --task_name $task_name \
 --use_CLS \
+--use_start_U \
+--special_token_lr 2e-4 \
 --no_pad_to_max_length \
 --train_file $DATA_DIR/train.csv \
 --validation_file $DATA_DIR/dev.csv \
