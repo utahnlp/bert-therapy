@@ -340,7 +340,7 @@ def main():
             use_start_U=model_args.use_start_U,
             use_end_U=model_args.use_end_U,
             tokenizer_name=model_args.tokenizer_name,
-            use_fast_fast_tokenizer=model_args.use_fast_tokenizer,
+            use_fast_tokenizer=model_args.use_fast_tokenizer,
             cache_dir=model_args.cache_dir,
             revision=model_args.model_revision,
             special_token_lr=training_args.special_token_lr,

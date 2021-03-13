@@ -36,7 +36,7 @@ class MyTrainer(Trainer):
             misc_special_embs = ["misc_special_embeddings"]
             if self.args.special_token_lr:
                 special_embeddings_named_params = [ (n, p) for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay) and any(se in n for se in misc_special_embs)]
-                logger.info("special_embeddings_params: {}".format([n for (n, p) in special_embeddings_named_params]))
+                logger.info("special_embeddings_params: {special_embeddings_named_params}")
                 optimizer_grouped_parameters = [
                     {
                         "params": [p for (n, p) in special_embeddings_named_params],
@@ -53,6 +53,7 @@ class MyTrainer(Trainer):
                     },
                 ]
             else:
+                logger.info("no use special_embeddings_params lr ")
                 optimizer_grouped_parameters = [
                     {
                         "params": [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)],
