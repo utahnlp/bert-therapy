@@ -11,7 +11,7 @@ gpuid=$1
 task_name=$2
 encoder_name=$3
 
-EXP_DIR=$EVAL_DIR"/output/"$task_name"/speaker_span_CLS_SU_EU/"
+EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/speaker_span_CLS_256/
 DATA_DIR=$EVAL_DIR/generated_data/$encoder_name/$task_name/
 
 ### CHECK WORK & DATA DIR
@@ -43,7 +43,7 @@ pargs="
 --weight_decay 0.1 \
 --num_train_epochs 7 \
 --load_best_model_at_end \
---eval_steps 2000 \
+--eval_steps 1000 \
 --max_seq_length 256 \
 --evaluation_strategy steps \
 --metric_for_best_model f1_macro \

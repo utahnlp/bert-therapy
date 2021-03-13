@@ -51,8 +51,22 @@ class MISCBERTModel(PreTrainedModel):
             revision=config.revision,
             use_auth_token=True if config.use_auth_token else None,
         )
-        self.tokenizer = tokenizer
-        self.encoder.resize_token_embeddings(len(tokenizer)) # doesn't mess with existing tokens
+        if tokenizer:
+            self.tokenizer = tokenizer
+            self.encoder.resize_token_embeddings(len(tokenizer)) # doesn't mess with existing tokens
+        else:
+            self.tokenizer = AutoTokenizer.from_pretrained(
+                model_args.tokenizer_name if config.tokenizer_name else config.encoder_model_name_or_path,
+                cache_dir=config.cache_dir,
+                use_fast=config.use_fast_tokenizer,
+                revision=config.model_revision,
+                use_auth_token=True if config.use_auth_token else None,
+            )
+            # still load original tokenizer, add readd the new special tokens
+            num_added_tokens = self.tokenizer.add_special_tokens({'additional_special_tokens': [misc_constants.PATIENT_START_TAG, misc_constants.PATIENT_END_TAG, misc_constants.THERAPIST_START_TAG, misc_constants.THERAPIST_END_TAG, misc_constants.UTTER_START_TAG, misc_constants.UTTER_END_TAG]})
+            self.encoder.resize_token_embeddings(len(self.tokenizer)) # doesn't mess with existing tokens
+
+        # not use base for BERT
         setattr(self, self.base_model_prefix, torch.nn.Sequential())
         self.classifier = MISCClassificationHead(config)
         # we always use the pretrained BERT, no need for init_weights.
@@ -160,7 +174,7 @@ class MISCClassificationHead(nn.Module):
             # [batch_size, self.acc, hidden_size]
             indices_tensor = torch.cat(kwargs['cls_head_indices'], 1).unsqueeze(-1).expand(-1, -1, features.size()[-1])
             # [batch_size, self.acc, hidden_size]
-            pre_reshape_x = features.gather(-1, indices_tensor)
+            pre_reshape_x = features.gather(1, indices_tensor)
             x = pre_reshape_x.reshape(features.size()[0], len(kwargs['cls_head_indices'])*features.size()[-1])
             logger.info('using indices_tensor as {}, pre_reshape_x:{}, x:{}'.format(indices_tensor, pre_reshape_x, x))
         else:

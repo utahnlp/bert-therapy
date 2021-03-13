@@ -11,7 +11,7 @@ gpuid=$1
 task_name=$2
 encoder_name=$3
 
-EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/speaker_span_CLS/
+EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/speaker_span_SU_512
 DATA_DIR=$EVAL_DIR/generated_data/$encoder_name/$task_name/
 
 ### CHECK WORK & DATA DIR
@@ -27,7 +27,7 @@ pargs="
 --encoder_model_name_or_path $encoder_name
 --copy_sep
 --task_name $task_name \
---use_CLS \
+--use_start_U \
 --no_pad_to_max_length \
 --train_file $DATA_DIR/train.csv \
 --validation_file $DATA_DIR/dev.csv \
@@ -44,7 +44,7 @@ pargs="
 --num_train_epochs 7 \
 --load_best_model_at_end \
 --eval_steps 1000 \
---max_seq_length 512 \
+--max_seq_length 256 \
 --evaluation_strategy steps \
 --metric_for_best_model f1_macro \
 --label_smoothing_factor 0.1 \
@@ -52,6 +52,5 @@ pargs="
 "
 
 pushd $EVAL_DIR
-echo "using gpus:"$gpuid
 CUDA_VISIBLE_DEVICES=$gpuid python modules/run_classifier.py $pargs 2>&1 &> $EXP_DIR/train.log
 popd

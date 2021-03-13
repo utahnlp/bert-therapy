@@ -402,7 +402,6 @@ def main():
                     # the last two tag are not splittable.
                     all_subwords1[total_length-1] = all_subwords1[-1]
                     all_subwords1[total_length-2] = all_subwords1[-2]
-                # when it is less then total_length, no padding will happen here.
                 all_subwords1 = all_subwords1[:total_length]
                 subwords1_ids = tokenizer.convert_tokens_to_ids(all_subwords1)
                 subwords2_ids = None
@@ -423,7 +422,6 @@ def main():
                     # the last two tag are not splittable.
                     all_subwords1[total_length-1] = all_subwords1[-1]
                     all_subwords1[total_length-2] = all_subwords1[-2]
-                # when it is less then total_length, no padding will happen here.
                 all_subwords1 = all_subwords1[:total_length]
                 subwords1_ids = tokenizer.convert_tokens_to_ids(all_subwords1)
 
