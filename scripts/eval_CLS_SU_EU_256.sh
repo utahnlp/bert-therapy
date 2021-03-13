@@ -12,7 +12,7 @@ task_name=$2
 encoder_name=$3
 model_name_or_path=$4
 
-EXP_DIR=$EVAL_DIR"/output/"$task_name"/speaker_span_CLS_SU_EU/"
+EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/speaker_span_CLS_SU_EU_256/
 DATA_DIR=$EVAL_DIR/generated_data/$encoder_name/$task_name/
 
 ### CHECK WORK & DATA DIR
