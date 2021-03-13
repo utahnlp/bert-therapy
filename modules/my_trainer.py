@@ -33,7 +33,7 @@ class MyTrainer(Trainer):
         """
         if self.optimizer is None:
             no_decay = ["bias", "LayerNorm.weight"]
-            misc_special_embs = ["misc_special_embeddings"]
+            misc_special_embs = ["misc_special_embedding"]
             if self.args.special_token_lr:
                 special_embeddings_named_params = [ (n, p) for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay) and any(se in n for se in misc_special_embs)]
                 logger.info("special_embeddings_params: {special_embeddings_named_params}")
