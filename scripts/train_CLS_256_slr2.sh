@@ -11,7 +11,7 @@ gpuid=$1
 task_name=$2
 encoder_name=$3
 
-EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/speaker_span_CLS_SU_256_nocopysep_slr/
+EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/CLS_256_nocopysep_slr2/
 DATA_DIR=$EVAL_DIR/generated_data/$encoder_name/$task_name/
 
 ### CHECK WORK & DATA DIR
@@ -27,8 +27,7 @@ pargs="
 --encoder_model_name_or_path $encoder_name
 --task_name $task_name \
 --use_CLS \
---use_start_U \
---special_token_lr=2e-4 \
+--special_token_lr=4e-5 \
 --no_pad_to_max_length \
 --train_file $DATA_DIR/train.csv \
 --validation_file $DATA_DIR/dev.csv \
@@ -36,7 +35,7 @@ pargs="
 --output_dir $EXP_DIR \
 --do_train \
 --do_eval \
---do_predict \
+--do_predic \
 --fp16 \
 --per_device_train_batch_size 64 \
 --adafactor \
@@ -44,7 +43,7 @@ pargs="
 --learning_rate 2e-5 \
 --warmup_steps 1000 \
 --weight_decay 0.1 \
---num_train_epochs 7 \
+--num_train_epochs 10 \
 --load_best_model_at_end \
 --eval_steps 1000 \
 --max_seq_length 256 \

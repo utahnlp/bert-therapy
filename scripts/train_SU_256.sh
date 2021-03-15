@@ -32,9 +32,11 @@ pargs="
 --no_pad_to_max_length \
 --train_file $DATA_DIR/train.csv \
 --validation_file $DATA_DIR/dev.csv \
+--test_file $DATA_DIR/test.csv \
 --output_dir $EXP_DIR \
 --do_train \
 --do_eval \
+--do_predict \
 --fp16 \
 --per_device_train_batch_size 64 \
 --adafactor \
@@ -42,7 +44,7 @@ pargs="
 --learning_rate 2e-5 \
 --warmup_steps 1000 \
 --weight_decay 0.1 \
---num_train_epochs 7 \
+--num_train_epochs 15 \
 --load_best_model_at_end \
 --eval_steps 1000 \
 --max_seq_length 256 \
