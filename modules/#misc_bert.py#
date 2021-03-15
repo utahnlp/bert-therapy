@@ -40,11 +40,12 @@ class MergedEmbedding(nn.Embedding):
         super(MergedEmbedding, self).__init__(num_embeddings=num, embedding_dim=dim1)
         self.embedding1 = embedding1layer
         self.misc_special_embedding = misc_special_embedding_layer
+        self.merged_weight = torch.cat([self.embedding1.weight.cuda(), self.misc_special_embedding.weight.cuda()], 0)
+        self.cuda()
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
-        merged_weight = torch.cat([self.embedding1.weight, self.misc_special_embedding.weight], 0)
         return F.embedding(
-            input, merged_weight, self.padding_idx, self.max_norm,
+            input, self.merged_weight, self.padding_idx, self.max_norm,
             self.norm_type, self.scale_grad_by_freq, self.sparse)
 
 
@@ -83,6 +84,7 @@ class MISCBERTModel(PreTrainedModel):
                     self.misc_special_embedding.weight.data = old_embeddings.weight.data[self.tokenizer.sep_token_id, :].repeat(len(misc_constants.special_speaker_tags), 1)
                 else:
                     self.encoder._init_weights(self.misc_special_embedding)
+                self.misc_special_embedding = self.misc_special_embedding.cuda()
                 merged_embeddings = MergedEmbedding(old_embeddings, self.misc_special_embedding)
                 self.encoder.set_input_embeddings(merged_embeddings)
         else:
@@ -105,12 +107,14 @@ class MISCBERTModel(PreTrainedModel):
                     self.misc_special_embedding.weight.data = old_embeddings.weight.data[self.tokenizer.sep_token_id, :].repeat(len(misc_constants.special_speaker_tags), 1)
                 else:
                     self.encoder._init_weights(self.misc_special_embedding)
+                self.misc_special_embedding = self.misc_special_embedding.cuda()
                 merged_embeddings = MergedEmbedding(old_embeddings, self.misc_special_embedding)
                 self.encoder.set_input_embeddings(merged_embeddings)
 
         # not use base for BERT
         setattr(self, self.base_model_prefix, torch.nn.Sequential())
         self.classifier = MISCClassificationHead(config)
+        self.cuda()
         # we always use the pretrained BERT, no need for init_weights.
 
     def forward(

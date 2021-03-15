@@ -12,7 +12,7 @@ task_name=$2
 encoder_name=$3
 
 EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/speaker_span_SU_256_no_copysep_slr_debug/
-DATA_DIR=$EVAL_DIR/generated_data/$encoder_name/$task_name/
+DATA_DIR=$EVAL_DIR/generated_data/$encoder_name/${task_name}_debug/
 
 ### CHECK WORK & DATA DIR
 if [ -e ${EXP_DIR} ]; then
