@@ -300,6 +300,7 @@ def main():
             num_labels=num_labels,
             finetuning_task=data_args.task_name,
             cache_dir=model_args.cache_dir,
+            copy_sep=model_args.copy_sep,
             revision=model_args.model_revision,
             special_token_lr=training_args.special_token_lr,
             use_auth_token=True if model_args.use_auth_token else None,
@@ -339,6 +340,7 @@ def main():
             use_CLS=model_args.use_CLS,
             use_start_U=model_args.use_start_U,
             use_end_U=model_args.use_end_U,
+            copy_sep=model_args.copy_sep,
             tokenizer_name=model_args.tokenizer_name,
             use_fast_tokenizer=model_args.use_fast_tokenizer,
             cache_dir=model_args.cache_dir,
@@ -362,9 +364,7 @@ def main():
             config=config,
             tokenizer=tokenizer
         )
-        embeddings = model.encoder.resize_token_embeddings(len(tokenizer)) # doesn't mess with existing tokens
-        if model_args.copy_sep:
-            embeddings.weight.data[tokenizer.additional_special_tokens_ids, :] = embeddings.weight.data[tokenizer.sep_token_id, :].repeat(num_added_tokens, 1)
+
     # Preprocessing the datasets
     # Again, we try to have some nice defaults but don't hesitate to tweak to your use case.
     non_label_column_names = [name for name in datasets["train"].columns if name != "label"]
@@ -545,7 +545,6 @@ def main():
 
     # Training
     if training_args.do_train:
-        logger.info("Trainer Optimizer:{}".format(trainer.optimizer))
         if last_checkpoint is not None:
             checkpoint = last_checkpoint
         elif os.path.isdir(model_args.model_name_or_path):
