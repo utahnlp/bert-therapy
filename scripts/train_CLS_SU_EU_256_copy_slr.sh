@@ -11,7 +11,7 @@ gpuid=$1
 task_name=$2
 encoder_name=$3
 
-EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/speaker_span_SU_256/
+EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/speaker_span_CLS_SU_EU_256_copy_slr/
 DATA_DIR=$EVAL_DIR/generated_data/$encoder_name/$task_name/
 
 ### CHECK WORK & DATA DIR
@@ -25,10 +25,12 @@ mkdir -p $EXP_DIR
 
 pargs="
 --encoder_model_name_or_path $encoder_name
---copy_sep
 --task_name $task_name \
---use_CLS=false \
+--use_CLS \
 --use_start_U \
+--use_end_U \
+--copy_sep \
+--special_token_lr=2e-4 \
 --no_pad_to_max_length \
 --train_file $DATA_DIR/train.csv \
 --validation_file $DATA_DIR/dev.csv \
@@ -44,7 +46,7 @@ pargs="
 --learning_rate 2e-5 \
 --warmup_steps 1000 \
 --weight_decay 0.1 \
---num_train_epochs 15 \
+--num_train_epochs 10 \
 --load_best_model_at_end \
 --eval_steps 1000 \
 --max_seq_length 256 \
