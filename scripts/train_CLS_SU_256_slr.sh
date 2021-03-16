@@ -45,9 +45,9 @@ pargs="
 --learning_rate 2e-5 \
 --warmup_steps 1000 \
 --weight_decay 0.1 \
---num_train_epochs 10 \
+--num_train_epochs 15 \
 --load_best_model_at_end \
---eval_steps 2000 \
+--eval_steps 1000 \
 --max_seq_length 256 \
 --evaluation_strategy steps \
 --metric_for_best_model f1_macro \

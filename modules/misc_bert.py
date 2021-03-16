@@ -40,6 +40,7 @@ class MergedEmbedding(nn.Embedding):
         super(MergedEmbedding, self).__init__(num_embeddings=num, embedding_dim=dim1)
         self.embedding1 = embedding1layer
         self.misc_special_embedding = misc_special_embedding_layer
+        self.weight.requires_grad = False
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         merged_weight = torch.cat([self.embedding1.weight, self.misc_special_embedding.weight], 0)
@@ -62,7 +63,6 @@ class MISCBERTModel(PreTrainedModel):
         super(MISCBERTModel, self).__init__(config=config)
         self.num_labels = config.num_labels
         self.config = config
-        self.misc_special_embedding = None
 
         # nn.Module is always initilized on CPU
         # config is the configuration for pretrained model
@@ -75,16 +75,22 @@ class MISCBERTModel(PreTrainedModel):
             self.tokenizer = tokenizer
             if 'special_token_lr' not in config.__dict__ or not config.special_token_lr:
                 self.encoder.resize_token_embeddings(len(tokenizer)) # doesn't mess with existing tokens
+                if self.config.copy_sep:
+                    self.encoder.embeddings.word_embeddings.weight.data[self.tokenizer.additional_special_tokens_ids, :] = self.encoder.embeddings.word_embeddings.weight.data[self.tokenizer.sep_token_id, :].repeat(len(misc_constants.special_speaker_tags), 1)
+                if config.freeze_bert_emb:
+                    self.encoder.embeddings.word_embeddings.weight.requires_grad = False
             else:
                 # nn.Module
                 old_embeddings = self.encoder.get_input_embeddings()
-                self.misc_special_embedding = nn.Embedding(len(misc_constants.special_speaker_tags), old_embeddings.weight.size()[-1])
+                misc_special_embedding = nn.Embedding(len(misc_constants.special_speaker_tags), old_embeddings.weight.size()[-1])
                 if self.config.copy_sep:
-                    self.misc_special_embedding.weight.data = old_embeddings.weight.data[self.tokenizer.sep_token_id, :].repeat(len(misc_constants.special_speaker_tags), 1)
+                    misc_special_embedding.weight.data = old_embeddings.weight.data[self.tokenizer.sep_token_id, :].repeat(len(misc_constants.special_speaker_tags), 1)
                 else:
-                    self.encoder._init_weights(self.misc_special_embedding)
-                merged_embeddings = MergedEmbedding(old_embeddings, self.misc_special_embedding)
+                    self.encoder._init_weights(misc_special_embedding)
+                merged_embeddings = MergedEmbedding(old_embeddings, misc_special_embedding)
                 self.encoder.set_input_embeddings(merged_embeddings)
+                if config.freeze_bert_emb:
+                    merged_embeddings.embedding1.weight.requires_grad = False
         else:
             self.tokenizer = AutoTokenizer.from_pretrained(
                 config.tokenizer_name if config.tokenizer_name else config.encoder_model_name_or_path,
@@ -96,17 +102,24 @@ class MISCBERTModel(PreTrainedModel):
             # still load original tokenizer, add readd the new special tokens
             num_added_tokens = self.tokenizer.add_special_tokens({'additional_special_tokens': misc_constants.special_speaker_tags})
             if 'special_token_lr' not in config.__dict__ or not config.special_token_lr:
-                self.encoder.resize_token_embeddings(len(tokenizer)) # doesn't mess with existing tokens
+                self.encoder.resize_token_embeddings(len(self.tokenizer)) # doesn't mess with existing tokens
+                if self.config.copy_sep:
+                    self.encoder.embeddings.word_embeddings.weight.data[self.tokenizer.additional_special_tokens_ids, :] = self.encoder.embeddings.word_embeddings.weight.data[self.tokenizer.sep_token_id, :].repeat(len(misc_constants.special_speaker_tags), 1)
+
+                if config.freeze_bert_emb:
+                    self.encoder.embeddings.word_embeddings.weight.requires_grad = False
             else:
                 # nn.Module
                 old_embeddings = self.encoder.get_input_embeddings()
-                self.misc_special_embedding = nn.Embedding(len(misc_constants.special_speaker_tags), old_embeddings.weight.size()[-1])
+                misc_special_embedding = nn.Embedding(len(misc_constants.special_speaker_tags), old_embeddings.weight.size()[-1])
                 if self.config.copy_sep:
-                    self.misc_special_embedding.weight.data = old_embeddings.weight.data[self.tokenizer.sep_token_id, :].repeat(len(misc_constants.special_speaker_tags), 1)
+                    misc_special_embedding.weight.data = old_embeddings.weight.data[self.tokenizer.sep_token_id, :].repeat(len(misc_constants.special_speaker_tags), 1)
                 else:
-                    self.encoder._init_weights(self.misc_special_embedding)
-                merged_embeddings = MergedEmbedding(old_embeddings, self.misc_special_embedding)
+                    self.encoder._init_weights(misc_special_embedding)
+                merged_embeddings = MergedEmbedding(old_embeddings, misc_special_embedding)
                 self.encoder.set_input_embeddings(merged_embeddings)
+                if config.freeze_bert_emb:
+                    merged_embeddings.embedding1.weight.requires_grad = False
 
         # not use base for BERT
         setattr(self, self.base_model_prefix, torch.nn.Sequential())

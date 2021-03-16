@@ -193,6 +193,12 @@ class ModelArguments:
             "help": "Whether use the end U tag for classification head."
         },
     )
+    freeze_bert_emb: bool = field(
+        default=False,
+        metadata={
+            "help": "Whether to freeze the embddings."
+        },
+    )
 
 
 def main():
@@ -301,6 +307,7 @@ def main():
             finetuning_task=data_args.task_name,
             cache_dir=model_args.cache_dir,
             copy_sep=model_args.copy_sep,
+            freeze_bert_emb=model_args.freeze_bert_emb,
             revision=model_args.model_revision,
             special_token_lr=training_args.special_token_lr,
             use_auth_token=True if model_args.use_auth_token else None,
@@ -341,6 +348,7 @@ def main():
             use_start_U=model_args.use_start_U,
             use_end_U=model_args.use_end_U,
             copy_sep=model_args.copy_sep,
+            freeze_bert_emb=model_args.freeze_bert_emb,
             tokenizer_name=model_args.tokenizer_name,
             use_fast_tokenizer=model_args.use_fast_tokenizer,
             cache_dir=model_args.cache_dir,
@@ -364,6 +372,7 @@ def main():
             config=config,
             tokenizer=tokenizer
         )
+
 
     # Preprocessing the datasets
     # Again, we try to have some nice defaults but don't hesitate to tweak to your use case.

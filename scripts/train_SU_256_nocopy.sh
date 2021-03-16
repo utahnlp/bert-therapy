@@ -31,9 +31,11 @@ pargs="
 --no_pad_to_max_length \
 --train_file $DATA_DIR/train.csv \
 --validation_file $DATA_DIR/dev.csv \
+--test_file $DATA_DIR/test.csv \
 --output_dir $EXP_DIR \
 --do_train \
 --do_eval \
+--do_predict \
 --fp16 \
 --per_device_train_batch_size 64 \
 --adafactor \
