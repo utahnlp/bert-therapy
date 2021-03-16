@@ -420,7 +420,7 @@ def main():
             # only has the utterance, then we truncate the utterance, but adding the end tags
             num_special_tokens = tokenizer.num_special_tokens_to_add(pair=False)
             for snt in examples[sentence1_key].tolist():
-                total_length = max_seq_length - num_speaker_tokens
+                total_length = max_seq_length - num_special_tokens
                 all_subwords1 = tokenizer.tokenize(snt)
                 ori_snt1_len = len(all_subwords1)
                 # check the paired tags only when speaker_span
@@ -432,7 +432,7 @@ def main():
                 all_subwords1 = all_subwords1[:total_length]
                 subwords1_ids = tokenizer.convert_tokens_to_ids(all_subwords1)
                 subwords2_ids = None
-                batch_input_ids.append((subwords1_ids, subwords2_ids2))
+                batch_input_ids.append((subwords1_ids, subwords2_ids))
                 cnt[ori_snt1_len + num_special_tokens] += 1
         else:
             # for sentence pair
