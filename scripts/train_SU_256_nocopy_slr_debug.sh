@@ -28,6 +28,7 @@ pargs="
 --task_name $task_name \
 --use_CLS=false \
 --use_start_U \
+--freeze_bert_emb \
 --special_token_lr=2e-4 \
 --no_pad_to_max_length \
 --train_file $DATA_DIR/train.csv \
