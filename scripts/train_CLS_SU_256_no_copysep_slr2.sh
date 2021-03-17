@@ -11,11 +11,11 @@ gpuid=$1
 task_name=$2
 encoder_name=$3
 
-EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/speaker_span_CLS_SU_256_nocopysep_slr/
+EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/speaker_span_CLS_SU_256_nocopy_slr2/
 DATA_DIR=$EVAL_DIR/generated_data/$encoder_name/$task_name/
 
 ### CHECK WORK & DATA DIR
-if [ -e ${EXP_DIR} -a $4 -gt 0 ]; then
+if [ -e ${EXP_DIR} ]; then
   today=`date +%m-%d.%H:%M`
   mv ${EXP_DIR} ${EXP_DIR%?}_${today}
   echo "rename original training folder to "${EXP_DIR%?}_${today}
@@ -28,7 +28,7 @@ pargs="
 --task_name $task_name \
 --use_CLS \
 --use_start_U \
---special_token_lr=2e-4 \
+--special_token_lr=4e-5 \
 --no_pad_to_max_length \
 --train_file $DATA_DIR/train.csv \
 --validation_file $DATA_DIR/dev.csv \
@@ -38,8 +38,7 @@ pargs="
 --do_eval \
 --do_predict \
 --fp16 \
---per_device_train_batch_size 32 \
---gradient_accumulation_steps 2
+--per_device_train_batch_size 64 \
 --adafactor \
 --group_by_length \
 --learning_rate 2e-5 \
@@ -47,11 +46,12 @@ pargs="
 --weight_decay 0.1 \
 --num_train_epochs 15 \
 --load_best_model_at_end \
---eval_steps 1000 \
+--eval_steps 2000 \
 --max_seq_length 256 \
 --evaluation_strategy steps \
 --metric_for_best_model f1_macro \
 --label_smoothing_factor 0.1 \
+--overwrite_output_dir
 "
 
 pushd $EVAL_DIR
