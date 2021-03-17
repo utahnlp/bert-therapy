@@ -36,7 +36,7 @@ pargs="
 --output_dir $EXP_DIR \
 --do_train \
 --do_eval \
---do_test \
+--do_predict \
 --fp16 \
 --per_device_train_batch_size 64 \
 --adafactor \

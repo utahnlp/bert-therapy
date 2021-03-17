@@ -15,7 +15,7 @@ EXP_DIR=$EVAL_DIR/output/$encoder_name/$task_name/speaker_span_CLS_SU_256_nocopy
 DATA_DIR=$EVAL_DIR/generated_data/$encoder_name/$task_name/
 
 ### CHECK WORK & DATA DIR
-if [ -e ${EXP_DIR} ]; then
+if [ -e ${EXP_DIR} -a $4 -gt 0 ]; then
   today=`date +%m-%d.%H:%M`
   mv ${EXP_DIR} ${EXP_DIR%?}_${today}
   echo "rename original training folder to "${EXP_DIR%?}_${today}
@@ -38,20 +38,20 @@ pargs="
 --do_eval \
 --do_predict \
 --fp16 \
---per_device_train_batch_size 64 \
+--per_device_train_batch_size 32 \
+--gradient_accumulation_steps 2
 --adafactor \
 --group_by_length \
 --learning_rate 2e-5 \
 --warmup_steps 1000 \
 --weight_decay 0.1 \
---num_train_epochs 7 \
+--num_train_epochs 15 \
 --load_best_model_at_end \
 --eval_steps 1000 \
 --max_seq_length 256 \
 --evaluation_strategy steps \
 --metric_for_best_model f1_macro \
 --label_smoothing_factor 0.1 \
---overwrite_output_dir
 "
 
 pushd $EVAL_DIR
